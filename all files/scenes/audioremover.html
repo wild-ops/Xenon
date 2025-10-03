@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Extract MP3 from MP4 — Download Audio</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--accent:#8b5cf6;--muted:#94a3b8;color-scheme:dark}
+    body{font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial;min-height:100vh;background:linear-gradient(180deg,#071022 0%,#071722 100%);color:#e6eef6;display:flex;align-items:center;justify-content:center;padding:24px}
+    .card{width:100%;max-width:880px;background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));border-radius:12px;padding:20px;box-shadow:0 8px 30px rgba(2,6,23,0.6);border:1px solid rgba(255,255,255,0.03)}
+    h1{margin:0 0 8px;font-size:20px}
+    p{margin:0 0 16px;color:var(--muted)}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .controls{display:flex;gap:8px;align-items:center}
+    input[type=file]{display:none}
+    .btn{background:linear-gradient(90deg,var(--accent),#06b6d4);border:none;color:white;padding:10px 12px;border-radius:8px;cursor:pointer;font-weight:600}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06)}
+    video{width:100%;max-height:240px;background:#000;border-radius:8px;margin-top:12px}
+    progress{width:100%;height:10px;border-radius:6px;background:rgba(255,255,255,0.03);overflow:hidden}
+    .info{font-size:13px;color:var(--muted);margin-top:8px}
+    .download-link{display:inline-block;margin-top:10px;padding:8px 10px;background:#0b1220;border:1px solid rgba(255,255,255,0.04);border-radius:8px}
+    .small{font-size:13px;color:var(--muted)}
+    footer{margin-top:14px;font-size:12px;color:var(--muted)}
+    .hidden{display:none}
+  </style>
+</head>
+<body>
+  <main class="card" role="main">
+    <h1>Extract audio (MP3) from MP4 — client-side</h1>
+    <p>Upload an MP4 video — the page will extract the audio in your browser and export an MP3 file. This uses <code>captureStream()</code>, <code>MediaRecorder</code>, and <code>lamejs</code> for MP3 encoding. Nothing leaves your machine.</p>
+
+    <div class="row">
+      <label class="btn" id="chooseBtn">
+        Select MP4
+        <input type="file" id="fileInput" accept="video/mp4,video/*">
+      </label>
+      <div style="flex:1"></div>
+      <button class="btn" id="processBtn" disabled>Extract audio & Download MP3</button>
+    </div>
+
+    <video id="player" controls playsinline class="hidden"></video>
+    <div class="info" id="fileInfo"></div>
+
+    <div style="margin-top:12px">
+      <label class="small">Progress</label>
+      <progress id="progress" value="0" max="100"></progress>
+    </div>
+
+    <div id="result" style="margin-top:10px"></div>
+
+    <footer>
+      <div class="small">Notes: For the MP3 encoder we load <code>lamejs</code> from a CDN. If you need an entirely offline bundle, you can self-host the script.</div>
+    </footer>
+  </main>
+
+  <!-- LameJS for MP3 encoding -->
+  <script src="https://unpkg.com/lamejs@1.2.0/lame.min.js"></script>
+
+<script>
+const fileInput = document.getElementById('fileInput');
+const processBtn = document.getElementById('processBtn');
+const player = document.getElementById('player');
+const progressEl = document.getElementById('progress');
+const result = document.getElementById('result');
+const fileInfo = document.getElementById('fileInfo');
+
+let currentFile = null;
+
+fileInput.addEventListener('change', (e) => {
+  if (e.target.files && e.target.files[0]) loadFile(e.target.files[0]);
+});
+
+function loadFile(file){
+  if (!file.type.startsWith('video/')){ alert('Please select a video file (MP4 recommended).'); return; }
+  currentFile = file;
+  fileInfo.textContent = `${file.name} — ${(file.size/1024/1024).toFixed(2)} MB`;
+  processBtn.disabled = false;
+  result.innerHTML = '';
+}
+
+processBtn.addEventListener('click', async () => {
+  if (!currentFile) return;
+  processBtn.disabled = true;
+  progressEl.value = 0;
+  result.innerHTML = '';
+
+  // load file into video element (hidden)
+  const url = URL.createObjectURL(currentFile);
+  player.src = url;
+  player.muted = true; // mute playback
+
+  try{
+    await player.play();
+  }catch(err){
+    // autoplay may be blocked; ask user to press play
+    alert('Autoplay blocked. Please press play on the (hidden) video element if prompted, then re-click the button.');
+    processBtn.disabled = false;
+    return;
+  }
+
+  // capture audio stream from the video element
+  let stream = null;
+  if (player.captureStream) stream = player.captureStream();
+  else if (player.mozCaptureStream) stream = player.mozCaptureStream();
+  else { alert('captureStream() not supported in this browser. Use Chrome, Edge, or Firefox.'); processBtn.disabled = false; return; }
+
+  const audioTracks = stream.getAudioTracks();
+  if (audioTracks.length === 0){ alert('No audio track found in the video.'); processBtn.disabled = false; return; }
+
+  // Record the audio-only stream to a blob (container likely webm/ogg)
+  // Choose a supported audio mime
+  const audioMimes = ['audio/webm;codecs=opus','audio/ogg;codecs=opus','audio/webm','audio/ogg'];
+  let mime = '';
+  for (const m of audioMimes) if (MediaRecorder.isTypeSupported(m)) { mime = m; break; }
+  const recorderOptions = mime ? { mimeType: mime } : {};
+
+  const audioStream = new MediaStream(audioTracks);
+  const mediaRecorder = new MediaRecorder(audioStream, recorderOptions);
+  const chunks = [];
+
+  mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+
+  mediaRecorder.onstop = async () => {
+    const audioBlob = new Blob(chunks, { type: chunks[0]?.type || 'audio/webm' });
+
+    // Convert recorded blob to AudioBuffer so we can encode to MP3 using lamejs
+    const arrayBuffer = await audioBlob.arrayBuffer();
+    const audioCtx = new (window.OfflineAudioContext || window.webkitOfflineAudioContext)(1, 2, 44100);
+
+    // decodeAudioData works on many audio container types (webm/ogg), but if it fails, try using a temporary Audio element playback approach
+    let audioBuffer = null;
+    try{
+      audioBuffer = await decodeAudioDataPromise(arrayBuffer);
+    }catch(err){
+      console.warn('decodeAudioData failed on recorded blob, falling back to MediaElement approach', err);
+      audioBuffer = await decodeViaAudioElement(audioBlob);
+    }
+
+    if (!audioBuffer){ alert('Could not decode audio for MP3 encoding. See console.'); processBtn.disabled = false; return; }
+
+    // encode to MP3 using lamejs
+    try{
+      const mp3Blob = encodeMp3FromAudioBuffer(audioBuffer);
+      const outUrl = URL.createObjectURL(mp3Blob);
+      const a = document.createElement('a');
+      a.href = outUrl;
+      const baseName = currentFile.name.replace(/\.[^/.]+$/, '');
+      a.download = baseName + '-audio.mp3';
+      a.textContent = 'Download MP3';
+      a.className = 'download-link';
+      result.appendChild(a);
+
+      // show audio preview
+      const audioEl = document.createElement('audio');
+      audioEl.controls = true;
+      audioEl.src = outUrl;
+      audioEl.style.display = 'block';
+      audioEl.style.marginTop = '12px';
+      result.appendChild(audioEl);
+
+    }catch(err){
+      console.error('MP3 encoding failed', err);
+      alert('MP3 encoding failed — see console for details.');
+    }
+
+    processBtn.disabled = false;
+    progressEl.value = 100;
+    player.pause();
+    URL.revokeObjectURL(url);
+  };
+
+  // progress estimator: use timeupdate from player
+  const duration = player.duration;
+  const onTime = () => {
+    if (!isFinite(duration) || duration === 0) return;
+    const percent = Math.min(99, (player.currentTime / duration) * 100);
+    progressEl.value = percent;
+  };
+  player.addEventListener('timeupdate', onTime);
+
+  // start recording
+  mediaRecorder.start(1000);
+  console.log('Recording audio with options', recorderOptions);
+
+  // stop when video ends
+  const onEnded = () => {
+    if (mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+    player.removeEventListener('ended', onEnded);
+    player.removeEventListener('timeupdate', onTime);
+  };
+  player.addEventListener('ended', onEnded);
+
+  // also set a max timeout in case ended isn't fired
+  setTimeout(()=>{
+    if (mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  }, (player.duration || 60) * 1000 + 2000);
+
+});
+
+// Helper: promise wrapper for decodeAudioData with browser differences
+function decodeAudioDataPromise(arrayBuffer){
+  return new Promise((resolve, reject) => {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    ctx.decodeAudioData(arrayBuffer, (buffer) => { resolve(buffer); }, (err) => { reject(err); });
+  });
+}
+
+// Fallback: create an audio element, load blob and render into OfflineAudioContext
+function decodeViaAudioElement(blob){
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const audio = document.createElement('audio');
+    audio.src = url;
+    audio.crossOrigin = 'anonymous';
+    audio.addEventListener('canplay', async () => {
+      try{
+        const [buffer, sampleRate] = await fetchAndDecode(url);
+        URL.revokeObjectURL(url);
+        resolve(buffer);
+      }catch(err){
+        URL.revokeObjectURL(url);
+        reject(err);
+      }
+    });
+    audio.addEventListener('error', (e)=>{ reject(e); });
+    // start loading
+    audio.load();
+  });
+}
+
+async function fetchAndDecode(url){
+  const resp = await fetch(url);
+  const ab = await resp.arrayBuffer();
+  return await decodeAudioDataPromise(ab);
+}
+
+// Encode AudioBuffer to MP3 using lamejs
+function encodeMp3FromAudioBuffer(audioBuffer){
+  if (typeof lamejs === 'undefined') throw new Error('lamejs not loaded');
+
+  const numChannels = audioBuffer.numberOfChannels;
+  const sampleRate = audioBuffer.sampleRate;
+  const mp3encoder = new lamejs.Mp3Encoder(numChannels, sampleRate, 128);
+
+  // interleave channels and convert to 16-bit PCM samples
+  const samples = audioBuffer.getChannelData(0);
+  let left = audioBuffer.getChannelData(0);
+  let right = numChannels > 1 ? audioBuffer.getChannelData(1) : null;
+
+  const blockSize = 1152;
+  const mp3Data = [];
+
+  for (let i = 0; i < left.length; i += blockSize) {
+    const leftChunk = left.subarray(i, i + blockSize);
+    let mp3buf;
+    if (numChannels === 1) {
+      const left16 = floatTo16BitPCM(leftChunk);
+      mp3buf = mp3encoder.encodeBuffer(left16);
+    } else {
+      const left16 = floatTo16BitPCM(leftChunk);
+      const rightChunk = right.subarray(i, i + blockSize);
+      const right16 = floatTo16BitPCM(rightChunk);
+      mp3buf = mp3encoder.encodeBuffer(left16, right16);
+    }
+    if (mp3buf.length > 0) mp3Data.push(new Uint8Array(mp3buf));
+  }
+
+  const endBuf = mp3encoder.flush();
+  if (endBuf.length > 0) mp3Data.push(new Uint8Array(endBuf));
+
+  const blob = new Blob(mp3Data, {type: 'audio/mp3'});
+  return blob;
+}
+
+function floatTo16BitPCM(float32Array){
+  const len = float32Array.length;
+  const buffer = new Int16Array(len);
+  for (let i = 0; i < len; i++){
+    let s = Math.max(-1, Math.min(1, float32Array[i]));
+    buffer[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+  }
+  return buffer;
+}
+
+</script>
+</body>
+</html>
+
+
+

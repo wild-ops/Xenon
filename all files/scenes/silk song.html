@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Offline</title>
+  <link rel="stylesheet" href="../styles/silk song.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Silk-Song-style — Mini Roguelike</h1>
+      <div class="hud">
+        <div>Score: <span id="score">0</span></div>
+        <div>Coins: <span id="coins">0</span></div>
+        <div>Health: <span id="health">6</span></div>
+        <div>Highscore: <span id="highscore">0</span></div>
+      </div>
+      <div class="controls">
+        Controls: ←/A, →/D = move • Space/W = jump • K = attack • L = dash • P = pause
+      </div>
+    </header>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <footer>
+      <button id="startBtn">Start / Restart</button>
+      <label for="difficulty">Difficulty</label>
+      <select id="difficulty">
+        <option value="easy">Easy</option>
+        <option value="normal" selected>Normal</option>
+        <option value="hard">Hard</option>
+      </select>
+      <button id="clearHigh">Clear Highscore</button>
+    </footer>
+  </div>
+
+  <script src="../scripts/silk song.js"></script>
+</body>
+</html>

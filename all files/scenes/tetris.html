@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Offline</title>
+  <link rel="stylesheet" href="../styles/tetris.css">
+</head>
+<body>
+  <div class="wrap">
+    <div class="game-card">
+      <canvas id="tetris" width="240" height="400"></canvas>
+      <div class="hud">
+        <div class="left">
+          <div class="small">Score: <span id="score">0</span></div>
+          <div class="small">Lines: <span id="lines">0</span></div>
+        </div>
+        <div class="small">Mode: <span id="modeDisplay">Normal</span></div>
+      </div>
+      <div class="controls">
+        <select id="modeSelect">
+          <option value="normal">Normal</option>
+          <option value="fast">Fast</option>
+          <option value="slow">Slow</option>
+          <option value="impossible">Impossible</option>
+        </select>
+        <button id="startBtn">Start</button>
+        <button id="resetBtn">Reset</button>
+      </div>
+    </div>
+  </div>
+  <button class="btn"><a href="/all files/scenes/gamez.html" style="color: white; text-decoration: none;">Back to Games</a></button>
+  <button onclick="mute()">🔇mute audio</button>
+  <audio id="bg-music" src="../resources/audio/Da Brozz - Tetris (Original Mix).mp3" autoplay loop></audio>
+  <script src="../scripts/tetris.js"></script>
+</body>
+</html>

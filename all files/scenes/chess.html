@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Offline</title>
+  <link rel="stylesheet" href="/all files/styles/chess.css">
+</head>
+<body>
+  <button class="btn"><a href="/all files/scenes/gamez.html" style="color: white;">Back to Games</a></button>
+  <div class="container">
+    <aside>
+      <h2>Play Mode</h2>
+      <select id="playmode">
+        <option value="ai">Player vs AI</option>
+        <option value="pvp">Player vs Player</option>
+      </select>
+      <button id="restart">Restart Game</button>
+    </aside>
+    <main>
+      <h1>Chess Game</h1>
+      <div id="chessboard"></div>
+      <div id="info"></div>
+    </main>
+  </div>
+  <button onclick="mute()" class="btn">🔇mute audio</button>
+  <audio id="bg-music" src="../resources/audio/audio.mp3" autoplay loop></audio>
+  <script src="../scripts/chess.js"></script>
+</body>
+</html>
